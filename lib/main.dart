@@ -3,6 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import 'models/task_model.dart';
 import 'screens/home_screen.dart';
+import 'services/notification_service.dart';
 import 'services/task_service.dart';
 
 void main() async {
@@ -11,6 +12,8 @@ void main() async {
   await Hive.initFlutter();
   Hive.registerAdapter(TaskModelAdapter());
   await Hive.openBox<TaskModel>(TaskService.boxName);
+
+  await NotificationService.init();
 
   runApp(const MyApp());
 }
@@ -21,14 +24,11 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Daily Task Planner',
+      title: 'Daily Task',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        fontFamily: 'Roboto',
         scaffoldBackgroundColor: const Color(0xffF8F7F1),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xff123B69),
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff123B69)),
       ),
       home: const HomeScreen(),
     );

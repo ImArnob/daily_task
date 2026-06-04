@@ -7,15 +7,37 @@ class TaskService {
   static Box<TaskModel> get box => Hive.box<TaskModel>(boxName);
 
   static List<TaskModel> getAllTasks() {
-    return box.values.toList();
+    final tasks = box.values.toList();
+
+    tasks.sort((a, b) {
+      if (a.isPriority != b.isPriority) {
+        return a.isPriority ? -1 : 1;
+      }
+      return a.createdAt.compareTo(b.createdAt);
+    });
+
+    return tasks;
   }
 
   static List<TaskModel> getTasksByDate(DateTime date) {
-    return box.values.where((task) {
+    final tasks = box.values.where((task) {
       return task.date.year == date.year &&
           task.date.month == date.month &&
           task.date.day == date.day;
     }).toList();
+
+    tasks.sort((a, b) {
+      if (a.isPriority != b.isPriority) {
+        return a.isPriority ? -1 : 1;
+      }
+      return a.createdAt.compareTo(b.createdAt);
+    });
+
+    return tasks;
+  }
+
+  static List<TaskModel> getTodayTasks() {
+    return getTasksByDate(DateTime.now());
   }
 
   static Future<void> addTask(TaskModel task) async {
@@ -28,9 +50,5 @@ class TaskService {
 
   static Future<void> deleteTask(String id) async {
     await box.delete(id);
-  }
-
-  static int doneCountByDate(DateTime date) {
-    return getTasksByDate(date).where((task) => task.isDone).length;
   }
 }

@@ -5,6 +5,8 @@ class TaskModel {
   final String title;
   final String category;
   final DateTime date;
+  final DateTime createdAt;
+  final DateTime? reminderTime;
   final bool isDone;
   final bool isPriority;
 
@@ -13,6 +15,8 @@ class TaskModel {
     required this.title,
     required this.category,
     required this.date,
+    required this.createdAt,
+    this.reminderTime,
     this.isDone = false,
     this.isPriority = false,
   });
@@ -22,6 +26,9 @@ class TaskModel {
     String? title,
     String? category,
     DateTime? date,
+    DateTime? createdAt,
+    DateTime? reminderTime,
+    bool clearReminder = false,
     bool? isDone,
     bool? isPriority,
   }) {
@@ -30,6 +37,8 @@ class TaskModel {
       title: title ?? this.title,
       category: category ?? this.category,
       date: date ?? this.date,
+      createdAt: createdAt ?? this.createdAt,
+      reminderTime: clearReminder ? null : reminderTime ?? this.reminderTime,
       isDone: isDone ?? this.isDone,
       isPriority: isPriority ?? this.isPriority,
     );
@@ -42,23 +51,31 @@ class TaskModelAdapter extends TypeAdapter<TaskModel> {
 
   @override
   TaskModel read(BinaryReader reader) {
+    final fields = reader.readMap();
+
     return TaskModel(
-      id: reader.readString(),
-      title: reader.readString(),
-      category: reader.readString(),
-      date: reader.read() as DateTime,
-      isDone: reader.readBool(),
-      isPriority: reader.readBool(),
+      id: fields['id'] as String,
+      title: fields['title'] as String,
+      category: fields['category'] as String,
+      date: fields['date'] as DateTime,
+      createdAt: fields['createdAt'] as DateTime? ?? DateTime.now(),
+      reminderTime: fields['reminderTime'] as DateTime?,
+      isDone: fields['isDone'] as bool? ?? false,
+      isPriority: fields['isPriority'] as bool? ?? false,
     );
   }
 
   @override
   void write(BinaryWriter writer, TaskModel obj) {
-    writer.writeString(obj.id);
-    writer.writeString(obj.title);
-    writer.writeString(obj.category);
-    writer.write(obj.date);
-    writer.writeBool(obj.isDone);
-    writer.writeBool(obj.isPriority);
+    writer.writeMap({
+      'id': obj.id,
+      'title': obj.title,
+      'category': obj.category,
+      'date': obj.date,
+      'createdAt': obj.createdAt,
+      'reminderTime': obj.reminderTime,
+      'isDone': obj.isDone,
+      'isPriority': obj.isPriority,
+    });
   }
 }

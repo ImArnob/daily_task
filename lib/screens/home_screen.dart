@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
+import '../services/notification_service.dart';
 
 import '../models/task_model.dart';
 import '../services/task_service.dart';
@@ -17,6 +18,10 @@ class HomeScreen extends StatefulWidget {
 enum BottomTab { home, calendar }
 
 class _HomeScreenState extends State<HomeScreen> {
+  int getNotificationId(String id) {
+    return id.hashCode.abs() % 100000;
+  }
+
   DateTime selectedDate = DateTime.now();
   BottomTab currentTab = BottomTab.home;
 
@@ -32,18 +37,51 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  String getGreetingMessage() {
+    final hour = DateTime.now().hour;
+
+    if (hour >= 5 && hour < 12) {
+      return 'Good Morning';
+    } else if (hour >= 12 && hour < 17) {
+      return 'Good Afternoon';
+    } else if (hour >= 17 && hour < 21) {
+      return 'Good Evening';
+    } else {
+      return 'Good Night';
+    }
+  }
+
+  String getGreetingIcon() {
+    final hour = DateTime.now().hour;
+
+    if (hour >= 5 && hour < 12) {
+      return '☀️';
+    } else if (hour >= 12 && hour < 17) {
+      return '🌤️';
+    } else if (hour >= 17 && hour < 21) {
+      return '🌙';
+    } else {
+      return '🌌';
+    }
+  }
+
   double getProgress(List<TaskModel> tasks) {
     if (tasks.isEmpty) return 0;
     final done = tasks.where((task) => task.isDone).length;
     return done / tasks.length;
   }
 
-  void openAddTaskSheet({DateTime? taskDate}) {
-    titleController.clear();
-    categoryController.clear();
-    isPriority = false;
+  void openAddTaskSheet({DateTime? taskDate, TaskModel? oldTask}) {
+    final bool isEditMode = oldTask != null;
 
-    final DateTime pickedDate = taskDate ?? selectedDate;
+    titleController.text = oldTask?.title ?? '';
+    categoryController.text = oldTask?.category ?? '';
+    isPriority = oldTask?.isPriority ?? false;
+
+    DateTime pickedDate = oldTask?.date ?? taskDate ?? selectedDate;
+    TimeOfDay? pickedReminderTime = oldTask?.reminderTime == null
+        ? null
+        : TimeOfDay.fromDateTime(oldTask!.reminderTime!);
 
     showModalBottomSheet(
       context: context,
@@ -63,88 +101,190 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: Color(0xffF8F7F1),
                 borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Add New Task',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    DateFormat('EEEE, MMM d').format(pickedDate),
-                    style: TextStyle(color: Colors.grey.shade700),
-                  ),
-                  const SizedBox(height: 18),
-
-                  TextField(
-                    controller: titleController,
-                    decoration: inputDecoration('Task title'),
-                  ),
-                  const SizedBox(height: 12),
-
-                  TextField(
-                    controller: categoryController,
-                    decoration: inputDecoration('Category e.g. Work, Study'),
-                  ),
-                  const SizedBox(height: 12),
-
-                  SwitchListTile(
-                    value: isPriority,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Priority task'),
-                    activeColor: const Color(0xff123B69),
-                    onChanged: (value) {
-                      setSheetState(() {
-                        isPriority = value;
-                      });
-                    },
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xff123B69),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                        ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isEditMode ? 'Edit Task' : 'Add New Task',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
                       ),
-                      onPressed: () async {
-                        if (titleController.text.trim().isEmpty) return;
+                    ),
 
-                        final task = TaskModel(
-                          id: DateTime.now().millisecondsSinceEpoch.toString(),
-                          title: titleController.text.trim(),
-                          category: categoryController.text.trim().isEmpty
-                              ? 'Standard'
-                              : categoryController.text.trim(),
-                          date: pickedDate,
-                          isPriority: isPriority,
+                    const SizedBox(height: 8),
+
+                    Text(
+                      DateFormat('EEEE, MMM d').format(pickedDate),
+                      style: TextStyle(color: Colors.grey.shade700),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    TextField(
+                      controller: titleController,
+                      maxLines: 2,
+                      minLines: 1,
+                      decoration: inputDecoration('Task title'),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    TextField(
+                      controller: categoryController,
+                      decoration: inputDecoration('Category e.g. Work, Study'),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.calendar_month),
+                      title: const Text('Task Date'),
+                      subtitle: Text(
+                        DateFormat('MMM d, yyyy').format(pickedDate),
+                      ),
+                      onTap: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate: pickedDate,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2035),
                         );
 
-                        await TaskService.addTask(task);
-
-                        if (mounted) {
-                          Navigator.pop(context);
-                          setState(() {});
+                        if (date != null) {
+                          setSheetState(() {
+                            pickedDate = date;
+                          });
                         }
                       },
-                      child: const Text(
-                        'Save Task',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.notifications_active_outlined),
+                      title: const Text('Reminder'),
+                      subtitle: Text(
+                        pickedReminderTime == null
+                            ? 'No reminder selected'
+                            : pickedReminderTime!.format(context),
+                      ),
+                      trailing: pickedReminderTime == null
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () {
+                                setSheetState(() {
+                                  pickedReminderTime = null;
+                                });
+                              },
+                            ),
+                      onTap: () async {
+                        final time = await showTimePicker(
+                          context: context,
+                          initialTime: pickedReminderTime ?? TimeOfDay.now(),
+                        );
+
+                        if (time != null) {
+                          setSheetState(() {
+                            pickedReminderTime = time;
+                          });
+                        }
+                      },
+                    ),
+
+                    SwitchListTile(
+                      value: isPriority,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Priority task'),
+                      activeThumbColor: const Color(0xff123B69),
+                      onChanged: (value) {
+                        setSheetState(() {
+                          isPriority = value;
+                        });
+                      },
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xff123B69),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                        ),
+                        onPressed: () async {
+                          final navigator = Navigator.of(context);
+
+                          if (titleController.text.trim().isEmpty) return;
+
+                          DateTime? reminderDateTime;
+
+                          if (pickedReminderTime != null) {
+                            reminderDateTime = DateTime(
+                              pickedDate.year,
+                              pickedDate.month,
+                              pickedDate.day,
+                              pickedReminderTime!.hour,
+                              pickedReminderTime!.minute,
+                            );
+                          }
+
+                          final taskId =
+                              oldTask?.id ??
+                              DateTime.now().millisecondsSinceEpoch.toString();
+
+                          final task = TaskModel(
+                            id: taskId,
+                            title: titleController.text.trim(),
+                            category: categoryController.text.trim().isEmpty
+                                ? 'Standard'
+                                : categoryController.text.trim(),
+                            date: pickedDate,
+                            createdAt: oldTask?.createdAt ?? DateTime.now(),
+                            reminderTime: reminderDateTime,
+                            isDone: oldTask?.isDone ?? false,
+                            isPriority: isPriority,
+                          );
+
+                          if (isEditMode) {
+                            await TaskService.updateTask(task);
+                          } else {
+                            await TaskService.addTask(task);
+                          }
+
+                          await NotificationService.cancelReminder(
+                            getNotificationId(task.id),
+                          );
+
+                          if (reminderDateTime != null) {
+                            await NotificationService.scheduleTaskReminder(
+                              id: getNotificationId(task.id),
+                              title: task.title,
+                              scheduledDate: reminderDateTime,
+                            );
+                          }
+
+                          if (!mounted) return;
+
+                          navigator.pop();
+                          setState(() {});
+                        },
+                        child: Text(
+                          isEditMode ? 'Update Task' : 'Save Task',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ).animate().slideY(begin: 0.25, duration: 350.ms).fadeIn();
           },
@@ -171,7 +311,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return ValueListenableBuilder(
       valueListenable: TaskService.box.listenable(),
       builder: (context, Box<TaskModel> box, _) {
-        final tasks = TaskService.getTasksByDate(selectedDate);
+        final tasks = currentTab == BottomTab.home
+            ? TaskService.getTodayTasks()
+            : TaskService.getTasksByDate(selectedDate);
         final progress = getProgress(tasks);
 
         return Scaffold(
@@ -183,7 +325,12 @@ class _HomeScreenState extends State<HomeScreen> {
           floatingActionButton: FloatingActionButton.extended(
             backgroundColor: const Color(0xff123B69),
             foregroundColor: Colors.white,
-            onPressed: () => openAddTaskSheet(taskDate: selectedDate),
+            onPressed: () {
+              final date = currentTab == BottomTab.home
+                  ? DateTime.now()
+                  : selectedDate;
+              openAddTaskSheet(taskDate: date);
+            },
             icon: const Icon(Icons.add),
             label: const Text('New Task'),
           ).animate().scale(duration: 300.ms),
@@ -200,7 +347,7 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Good Morning,☀️',
+            '${getGreetingMessage()} ${getGreetingIcon()}',
             style: const TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.w900,
@@ -217,7 +364,7 @@ class _HomeScreenState extends State<HomeScreen> {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: Colors.black.withValues(alpha: 0.08),
                   blurRadius: 18,
                   offset: const Offset(0, 8),
                 ),
@@ -261,7 +408,7 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                DateFormat('EEEE, MMM d').format(selectedDate),
+                DateFormat('EEEE, MMM d').format(DateTime.now()),
                 style: const TextStyle(
                   fontWeight: FontWeight.w800,
                   fontSize: 18,
@@ -294,16 +441,22 @@ class _HomeScreenState extends State<HomeScreen> {
                     itemBuilder: (context, index) {
                       final task = tasks[index];
                       return TaskCard(
-                        task: task,
-                        onToggle: () async {
-                          await TaskService.updateTask(
-                            task.copyWith(isDone: !task.isDone),
-                          );
-                        },
-                        onDelete: () async {
-                          await TaskService.deleteTask(task.id);
-                        },
-                      )
+                            task: task,
+                            onToggle: () async {
+                              await TaskService.updateTask(
+                                task.copyWith(isDone: !task.isDone),
+                              );
+                            },
+                            onEdit: () {
+                              openAddTaskSheet(oldTask: task);
+                            },
+                            onDelete: () async {
+                              await NotificationService.cancelReminder(
+                                getNotificationId(task.id),
+                              );
+                              await TaskService.deleteTask(task.id);
+                            },
+                          )
                           .animate()
                           .fadeIn(delay: (index * 80).ms)
                           .slideY(begin: 0.18);
@@ -348,7 +501,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 shape: BoxShape.circle,
               ),
               todayDecoration: BoxDecoration(
-                color: const Color(0xff123B69).withOpacity(0.3),
+                color: const Color(0xff123B69).withValues(alpha: 0.3),
                 shape: BoxShape.circle,
               ),
               markerDecoration: const BoxDecoration(
@@ -398,16 +551,22 @@ class _HomeScreenState extends State<HomeScreen> {
                     itemBuilder: (context, index) {
                       final task = selectedTasks[index];
                       return TaskCard(
-                        task: task,
-                        onToggle: () async {
-                          await TaskService.updateTask(
-                            task.copyWith(isDone: !task.isDone),
-                          );
-                        },
-                        onDelete: () async {
-                          await TaskService.deleteTask(task.id);
-                        },
-                      )
+                            task: task,
+                            onToggle: () async {
+                              await TaskService.updateTask(
+                                task.copyWith(isDone: !task.isDone),
+                              );
+                            },
+                            onEdit: () {
+                              openAddTaskSheet(oldTask: task);
+                            },
+                            onDelete: () async {
+                              await NotificationService.cancelReminder(
+                                getNotificationId(task.id),
+                              );
+                              await TaskService.deleteTask(task.id);
+                            },
+                          )
                           .animate()
                           .fadeIn(delay: (index * 70).ms)
                           .slideX(begin: 0.1);
@@ -430,10 +589,7 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       },
       items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_rounded),
-          label: 'Home',
-        ),
+        BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Home'),
         BottomNavigationBarItem(
           icon: Icon(Icons.calendar_month_rounded),
           label: 'Calendar',
@@ -446,17 +602,21 @@ class _HomeScreenState extends State<HomeScreen> {
 class TaskCard extends StatelessWidget {
   final TaskModel task;
   final VoidCallback onToggle;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const TaskCard({
     super.key,
     required this.task,
     required this.onToggle,
+    required this.onEdit,
     required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
+    final String createdTime = DateFormat('h:mm a').format(task.createdAt);
+
     return Dismissible(
       key: ValueKey(task.id),
       direction: DismissDirection.endToStart,
@@ -476,24 +636,28 @@ class TaskCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: task.isDone ? Colors.green.withOpacity(0.10) : Colors.white,
+          color: task.isDone
+              ? Colors.green.withValues(alpha: 0.10)
+              : Colors.white,
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 14,
               offset: const Offset(0, 6),
             ),
           ],
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             GestureDetector(
               onTap: onToggle,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 250),
-                height: 25,
-                width: 25,
+                margin: const EdgeInsets.only(top: 3),
+                height: 24,
+                width: 24,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: task.isDone ? const Color(0xff123B69) : Colors.white,
@@ -505,7 +669,7 @@ class TaskCard extends StatelessWidget {
                   ),
                 ),
                 child: task.isDone
-                    ? const Icon(Icons.check, color: Colors.white, size: 17)
+                    ? const Icon(Icons.check, color: Colors.white, size: 16)
                     : null,
               ),
             ),
@@ -518,16 +682,26 @@ class TaskCard extends StatelessWidget {
                 children: [
                   Text(
                     task.title,
+                    softWrap: true,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      decoration:
-                          task.isDone ? TextDecoration.lineThrough : null,
+                      height: 1.25,
+                      decoration: task.isDone
+                          ? TextDecoration.lineThrough
+                          : null,
                       color: task.isDone ? Colors.grey : Colors.black,
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Row(
+
+                  const SizedBox(height: 8),
+
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -536,26 +710,73 @@ class TaskCard extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: task.isPriority
-                              ? Colors.amber.withOpacity(0.35)
-                              : Colors.grey.withOpacity(0.18),
+                              ? Colors.amber.withValues(alpha: 0.35)
+                              : Colors.grey.withValues(alpha: 0.18),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
                           task.isPriority ? 'Priority' : task.category,
                           style: const TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        DateFormat('MMM d').format(task.date),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
+
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.access_time,
+                            size: 13,
+                            color: Colors.grey.shade600,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            createdTime,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
                       ),
+
+                      if (task.reminderTime != null)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.notifications_active_outlined,
+                              size: 13,
+                              color: Colors.grey.shade600,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              DateFormat('h:mm a').format(task.reminderTime!),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ],
+              ),
+            ),
+
+            const SizedBox(width: 8),
+
+            InkWell(
+              onTap: onEdit,
+              borderRadius: BorderRadius.circular(20),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(
+                  Icons.edit_outlined,
+                  size: 20,
+                  color: Colors.grey.shade700,
+                ),
               ),
             ),
           ],
