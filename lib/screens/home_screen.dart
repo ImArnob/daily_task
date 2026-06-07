@@ -26,14 +26,14 @@ class _HomeScreenState extends State<HomeScreen> {
   BottomTab currentTab = BottomTab.home;
 
   final TextEditingController titleController = TextEditingController();
-  final TextEditingController categoryController = TextEditingController();
+  final TextEditingController descriptionController = TextEditingController();
 
   bool isPriority = false;
 
   @override
   void dispose() {
     titleController.dispose();
-    categoryController.dispose();
+    descriptionController.dispose();
     super.dispose();
   }
 
@@ -75,7 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final bool isEditMode = oldTask != null;
 
     titleController.text = oldTask?.title ?? '';
-    categoryController.text = oldTask?.category ?? '';
+    descriptionController.text = oldTask?.description ?? '';
     isPriority = oldTask?.isPriority ?? false;
 
     DateTime pickedDate = oldTask?.date ?? taskDate ?? selectedDate;
@@ -133,8 +133,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 12),
 
                     TextField(
-                      controller: categoryController,
-                      decoration: inputDecoration('Category e.g. Work, Study'),
+                      controller: descriptionController,
+                      minLines: 3,
+                      maxLines: 5,
+                      decoration: inputDecoration('Task description'),
                     ),
 
                     const SizedBox(height: 12),
@@ -244,9 +246,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           final task = TaskModel(
                             id: taskId,
                             title: titleController.text.trim(),
-                            category: categoryController.text.trim().isEmpty
-                                ? 'Standard'
-                                : categoryController.text.trim(),
+                            description: descriptionController.text.trim(),
                             date: pickedDate,
                             createdAt: oldTask?.createdAt ?? DateTime.now(),
                             reminderTime: reminderDateTime,
@@ -260,22 +260,25 @@ class _HomeScreenState extends State<HomeScreen> {
                             await TaskService.addTask(task);
                           }
 
-                          await NotificationService.cancelReminder(
-                            getNotificationId(task.id),
-                          );
-
-                          if (reminderDateTime != null) {
-                            await NotificationService.scheduleTaskReminder(
-                              id: getNotificationId(task.id),
-                              title: task.title,
-                              scheduledDate: reminderDateTime,
-                            );
-                          }
-
                           if (!mounted) return;
 
                           navigator.pop();
                           setState(() {});
+
+                          final notificationId =
+                              task.id.hashCode.abs() % 100000;
+
+                          await NotificationService.cancelReminder(
+                            notificationId,
+                          );
+
+                          if (reminderDateTime != null) {
+                            await NotificationService.scheduleTaskReminder(
+                              id: notificationId,
+                              title: task.title,
+                              scheduledDate: reminderDateTime,
+                            );
+                          }
                         },
                         child: Text(
                           isEditMode ? 'Update Task' : 'Save Task',
@@ -451,8 +454,10 @@ class _HomeScreenState extends State<HomeScreen> {
                               openAddTaskSheet(oldTask: task);
                             },
                             onDelete: () async {
+                              final notificationId = getNotificationId(task.id);
+
                               await NotificationService.cancelReminder(
-                                getNotificationId(task.id),
+                                notificationId,
                               );
                               await TaskService.deleteTask(task.id);
                             },
@@ -561,8 +566,10 @@ class _HomeScreenState extends State<HomeScreen> {
                               openAddTaskSheet(oldTask: task);
                             },
                             onDelete: () async {
+                              final notificationId = getNotificationId(task.id);
+
                               await NotificationService.cancelReminder(
-                                getNotificationId(task.id),
+                                notificationId,
                               );
                               await TaskService.deleteTask(task.id);
                             },
@@ -603,7 +610,7 @@ class TaskCard extends StatelessWidget {
   final TaskModel task;
   final VoidCallback onToggle;
   final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final Future<void> Function() onDelete;
 
   const TaskCard({
     super.key,
@@ -618,9 +625,11 @@ class TaskCard extends StatelessWidget {
     final String createdTime = DateFormat('h:mm a').format(task.createdAt);
 
     return Dismissible(
-      key: ValueKey(task.id),
+      key: ValueKey('task_${task.id}'),
       direction: DismissDirection.endToStart,
-      onDismissed: (_) => onDelete(),
+      onDismissed: (_) async {
+        await onDelete();
+      },
       background: Container(
         margin: const EdgeInsets.only(bottom: 12),
         alignment: Alignment.centerRight,
@@ -703,23 +712,36 @@ class TaskCard extends StatelessWidget {
                     runSpacing: 6,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 4,
+                      if (task.isPriority)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withValues(alpha: 0.35),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text(
+                            'Priority',
+                            style: TextStyle(fontSize: 12),
+                          ),
                         ),
-                        decoration: BoxDecoration(
-                          color: task.isPriority
-                              ? Colors.amber.withValues(alpha: 0.35)
-                              : Colors.grey.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(20),
+
+                      if (task.description.trim().isNotEmpty)
+                        SizedBox(
+                          width: double.infinity,
+                          child: Text(
+                            task.description,
+                            softWrap: true,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
                         ),
-                        child: Text(
-                          task.isPriority ? 'Priority' : task.category,
-                          style: const TextStyle(fontSize: 12),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
 
                       Row(
                         mainAxisSize: MainAxisSize.min,
