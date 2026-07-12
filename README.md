@@ -6,6 +6,12 @@ The app uses local storage, so tasks are saved directly on the device without re
 
 ---
 
+## Download
+
+Download Link: https://shorturl.at/EmnfE
+
+---
+
 ## 📱 Features
 
 - Add daily tasks
@@ -129,5 +135,4 @@ Users can select any date from the calendar and add or view tasks for that date.
 - Priority badges
 - Reminder time indicator
 - Responsive task title wrapping
-
 ---
