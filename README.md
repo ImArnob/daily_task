@@ -85,9 +85,9 @@ Tasks are filtered by date. The home screen only shows today’s tasks, while th
 
 ![Home Screen](image.png)
 
-![Add Task/Edit Task](image-2.png)
+![Add Task/Edit Task](image-1.png)
 
-![Calendar Screen](image-1.png)
+![Calendar Screen](image-2.png)
 
 ---
 
