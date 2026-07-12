@@ -1,4 +1,4 @@
-# Daily Task - Flutter To-Do App
+# Daily Task
 
 Daily Task is a clean and modern Flutter to-do application designed to help users organize their daily tasks, manage upcoming tasks, set reminders, and track progress with a smooth animated user interface.
 
@@ -60,6 +60,7 @@ lib/
     ├── task_service.dart
     └── notification_service.dart
 
+```
 ---
 
 🧠 How It Works
@@ -74,15 +75,24 @@ Reminder time
 Priority status
 Completion status
 
+Tasks are filtered by date. The home screen only shows today’s tasks, while the calendar screen allows users to view and add tasks for future dates.
+
 ---
 
-📸 Screenshots
+ ## 📸 Screenshots
 
+ ---
 
+![Home Screen](image.png)
+
+![Add Task/Edit Task](image-2.png)
+
+![Calendar Screen](image-1.png)
 
 ---
 
 ✨ Main Functionalities
+
 Add Task
 
 Users can add a new task with title, category, date, reminder, and priority status.
@@ -110,11 +120,14 @@ Users can select any date from the calendar and add or view tasks for that date.
 ---
 
 🎨 UI Highlights
-Soft modern background color
-Clean task cards
-Animated modal bottom sheet
-Smooth fade and slide animations
-Circular progress indicator
-Priority badges
-Reminder time indicator
-Responsive task title wrapping
+
+- Soft modern background color
+- Clean task cards
+- Animated modal bottom sheet
+- Smooth fade and slide animations
+- Circular progress indicator
+- Priority badges
+- Reminder time indicator
+- Responsive task title wrapping
+
+---

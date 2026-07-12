@@ -8,7 +8,14 @@ class TaskService {
 
   static List<TaskModel> getAllTasks() {
     final tasks = box.values.toList();
-    _sortTasks(tasks);
+
+    tasks.sort((a, b) {
+      if (a.isPriority != b.isPriority) {
+        return a.isPriority ? -1 : 1;
+      }
+      return a.createdAt.compareTo(b.createdAt);
+    });
+
     return tasks;
   }
 
@@ -18,19 +25,19 @@ class TaskService {
           task.date.month == date.month &&
           task.date.day == date.day;
     }).toList();
-    _sortTasks(tasks);
+
+    tasks.sort((a, b) {
+      if (a.isPriority != b.isPriority) {
+        return a.isPriority ? -1 : 1;
+      }
+      return a.createdAt.compareTo(b.createdAt);
+    });
+
     return tasks;
   }
 
   static List<TaskModel> getTodayTasks() {
     return getTasksByDate(DateTime.now());
-  }
-
-  static void _sortTasks(List<TaskModel> tasks) {
-    tasks.sort((a, b) {
-      if (a.isPriority != b.isPriority) return a.isPriority ? -1 : 1;
-      return a.createdAt.compareTo(b.createdAt);
-    });
   }
 
   static Future<void> addTask(TaskModel task) async {
@@ -43,9 +50,5 @@ class TaskService {
 
   static Future<void> deleteTask(String id) async {
     await box.delete(id);
-  }
-
-  static Future<void> clearAllTasks() async {
-    await box.clear();
   }
 }
